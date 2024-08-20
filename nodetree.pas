@@ -5,6 +5,9 @@ unit nodetree;
 interface
 
 type
+  TEmptyRecord = record
+  end;
+
   TAbstractDataIO = class
     procedure ReadData(var data; size: UInt64); virtual; abstract;
     procedure WriteData(const data; size: UInt64); virtual; abstract;
@@ -15,34 +18,11 @@ type
   end;
 
   generic TNodeTreeLoaderSaver<TNodeTree, TNodeDataIO> = class sealed
-    class procedure SaveToFile(node: Pointer; const filename: string); static;
+    class procedure SaveToFile(node: Pointer; const filename: string; const fileext: string); static;
     class procedure LoadFromFile(node: Pointer; const filename: string); static;
   end;
 
-  generic TSimpleArrayNodeTree<TNodeData, TNodeDataIO, TNodeComparator> = class sealed
-  type
-    TNodeDataType = TNodeData;
-    PNode = ^TNode;
-    TNode = record
-      node_data: TNodeData;
-      child_nodes: array of TNode;
-    end;
-
-    TSelf = specialize TSimpleArrayNodeTree<TNodeData, TNodeDataIO, TNodeComparator>;
-    TLoaderSaver = specialize TNodeTreeLoaderSaver<TSelf, TNodeDataIO>;
-  public
-    root_node: TNode;
-    class function get_child_count(node: PNode): SizeInt; static; inline;
-    class procedure set_child_count(node: PNode; count: SizeInt); static; inline;
-    class function get_child(node: PNode; i: SizeInt): PNode; static; inline;
-    class function add_child(node: PNode): PNode; static; inline;
-    class function find_child_node(node: PNode; data: Pointer): PNode; static; inline;
-    procedure Clear;
-    procedure SaveToFile(const filename: string = '');
-    procedure LoadFromFile(const filename: string);
-  end;
-
-  generic TPointerArrayNodeTree<TNodeData, TNodeDataIO, TNodeComparator> = class sealed
+  generic TPointerArrayNodeTree<TNodeData, TNodeDataIO, TNodeComparator> = class
   type
     TNodeDataType = TNodeData;
     PNode = ^TNode;
@@ -54,7 +34,7 @@ type
     TSelf = specialize TPointerArrayNodeTree<TNodeData, TNodeDataIO, TNodeComparator>;
     TLoaderSaver = specialize TNodeTreeLoaderSaver<TSelf, TNodeDataIO>;
   strict private
-    class procedure free_reqursive(node: PNode); static;// inline;
+    class procedure free_reqursive(node: PNode); static;
   public
     root_node: TNode;
     class function get_child_count(node: PNode): SizeInt; static; inline;
@@ -64,58 +44,11 @@ type
     class function find_child_node(node: PNode; data: Pointer): PNode; static; inline;
     destructor Destroy; override;
     procedure Clear;
-    procedure SaveToFile(const filename: string = '');
+    procedure SaveToFile(const filename: string; const fileext: string);
     procedure LoadFromFile(const filename: string);
   end;
 
 implementation
-
-class function TSimpleArrayNodeTree.get_child_count(node: PNode): SizeInt;
-begin
-  Result:=Length(node^.child_nodes);
-end;
-
-class procedure TSimpleArrayNodeTree.set_child_count(node: PNode; count: SizeInt);
-begin
-  SetLength(node^.child_nodes, count);
-end;
-
-class function TSimpleArrayNodeTree.get_child(node: PNode; i: SizeInt): PNode;
-begin
-  Result:=@node^.child_nodes[i];
-end;
-
-class function TSimpleArrayNodeTree.add_child(node: PNode): PNode;
-begin
-  set_child_count(node, get_child_count(node)+1);
-  Result:=get_child(node, get_child_count(node)-1);
-end;
-
-class function TSimpleArrayNodeTree.find_child_node(node: PNode; data: Pointer): PNode;
-var
-  i: longint;
-begin
-  for i:=0 to get_child_count(node)-1 do
-    if TNodeComparator.IsEqual(@get_child(node, i)^.node_data, data) then Exit(get_child(node, i));
-  Result:=nil
-end;
-
-procedure TSimpleArrayNodeTree.Clear;
-begin
-  set_child_count(@root_node, 0);
-end;
-
-procedure TSimpleArrayNodeTree.SaveToFile(const filename: string);
-begin
-  TLoaderSaver.SaveToFile(@root_node, filename);
-end;
-
-procedure TSimpleArrayNodeTree.LoadFromFile(const filename: string);
-begin
-  Clear;
-  TLoaderSaver.LoadFromFile(@root_node, filename);
-end;
-
 
 class procedure TPointerArrayNodeTree.free_reqursive(node: PNode);
 var
@@ -185,9 +118,9 @@ begin
   set_child_count(@root_node, 0);
 end;
 
-procedure TPointerArrayNodeTree.SaveToFile(const filename: string);
+procedure TPointerArrayNodeTree.SaveToFile(const filename: string; const fileext: string);
 begin
-  TLoaderSaver.SaveToFile(@root_node, filename);
+  TLoaderSaver.SaveToFile(@root_node, filename, fileext);
 end;
 
 procedure TPointerArrayNodeTree.LoadFromFile(const filename: string);
@@ -199,7 +132,7 @@ end;
 
 
 // --------------------
-class procedure TNodeTreeLoaderSaver.SaveToFile(node: Pointer; const filename: string);
+class procedure TNodeTreeLoaderSaver.SaveToFile(node: Pointer; const filename: string; const fileext: string);
 var
   NodeDataIO: TNodeDataIO;
   child_count: UInt32;
@@ -217,7 +150,7 @@ var
       SaveNodeRecursive(TNodeTree.get_child(node, i));
   end;
 begin
-  NodeDataIO:=TNodeDataIO.Create(filename);
+  NodeDataIO:=TNodeDataIO.Create(filename, fileext);
 
   SaveNodeRecursive(node);
 
@@ -238,10 +171,12 @@ var
     TNodeTree.set_child_count(node, child_count);
 
     for i:=0 to TNodeTree.get_child_count(node)-1 do
+    begin
       LoadNodeRecursive(TNodeTree.get_child(node, i));
+    end;
   end;
 begin
-  NodeDataIO:=TNodeDataIO.Create(filename);
+  NodeDataIO:=TNodeDataIO.Create(filename,'');
 
   LoadNodeRecursive(node);
 

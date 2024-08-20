@@ -9,7 +9,7 @@ uses
 type
   TDefaultNodeDataIO = class sealed(TAbstractDataIO)
     fs, cs, ds: TStream;
-    constructor Create(filename: String);
+    constructor Create(filename: String; const fileext: string);
     destructor Destroy; override;
     procedure ReadData(var data; size: UInt64); reintroduce; inline;
     procedure WriteData(const data; size: UInt64); reintroduce; inline;
@@ -17,11 +17,11 @@ type
 
 implementation
 
-constructor TDefaultNodeDataIO.Create(filename: String);
+constructor TDefaultNodeDataIO.Create(filename: String; const fileext: string);
 begin
   inherited Create;
 
-  if filename='' then filename:=FormatDateTime('yyyymmddHHMMSS', Now)+'.memprof';
+  if filename='' then filename:=FormatDateTime('yyyymmddHHMMSS', Now) + fileext;
   fs := TFileStream.Create(filename, specialize IfThen<Word>(FileExists(filename), fmOpenReadWrite, fmCreate));
   cs := TCompressionStream.Create(clfastest, fs);
   ds := TDecompressionStream.create(fs);
