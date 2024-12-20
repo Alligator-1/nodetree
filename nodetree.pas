@@ -32,7 +32,7 @@ type
 
 implementation
 
-procedure MyZeroMemory(var x; count: SizeInt);
+procedure MyZeroMemory(var x; count: SizeInt); inline;
 begin
   if IsConstValue(count) then
   begin
